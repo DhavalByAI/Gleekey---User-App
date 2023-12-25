@@ -1,9 +1,8 @@
-// ignore_for_file: file_names, prefer_typing_uninitialized_variables, non_constant_identifier_names
-
 import 'dart:convert';
 import 'dart:developer';
 
-import 'package:flutter/material.dart';
+import 'package:bloc/bloc.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:get/get.dart';
 import 'package:gleekey_user/src/Auth/Login/userLogin_model.dart';
 import 'package:gleekey_user/src/Auth/Login/userLogin_view.dart';
@@ -18,7 +17,11 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:google_sign_in/google_sign_in.dart';
 
-class UserLoginController extends GetxController {
+part 'user_login_state.dart';
+
+class UserLoginCubit extends Cubit<UserLoginState> {
+  UserLoginCubit() : super(UserLoginInitial());
+
   User_model? user_model;
 
   TextEditingController emailController = TextEditingController();
@@ -40,100 +43,50 @@ class UserLoginController extends GetxController {
 
   final box = Hive.box('gleekey');
 
-  @override
-  void onInit() {
-    log("trying for default login");
-    defaultLogin();
-    // if (isUserLogedIn) {
-    //   Get.to(() => HomePage());
-    // } else if (isEverLogedin == "true") {
-    //   Get.to(() => HomePage());
-    // } else {
-    //   Get.to(() => OnBoardScreen());
-    // }
-    super.onInit();
-  }
-
-  @override
-  void onClose() {
-    TextEditingController emailController = TextEditingController(text: null);
-    TextEditingController passwordController =
-        TextEditingController(text: null);
-    update();
-    super.onClose();
-  }
-
-  getApi() async {
-    http.Response response = await http.post(
-      Uri.parse(BaseConstant.BASE_URL + EndPoint.login),
-      body: {'email': email, 'password': password},
-    );
-    if (response.statusCode == 200 || response.statusCode == 401) {
-      var result = json.decode(response.body);
-      user_model = User_model.fromJson(result);
-      if (user_model!.status == true) {
-        currUser = user_model!;
-        isUserLogedIn = true;
-        userLogedinUpdate();
-        log("UserLoginController --> Login Success : " + email!);
-        loaderHide();
-        Get.off(() => const HomePage());
-      } else {
-        loaderHide();
-        showSnackBar(title: "Login Failed", message: user_model!.message);
-        currUser = User_model();
-        currUser!.data = Data();
-      }
+  void defaultLogin() {
+    email = box.get('email');
+    password = box.get('password');
+    isEverLogedin = box.get('isEverLogedin');
+    if (email != null && password != null) {
+      getApi();
     } else {
-      currUser = User_model();
-      currUser!.data = Data();
-      loaderHide();
-      printError(info: "Not get data from login api");
+      emit(UserLoginInitial());
     }
-    update();
   }
 
-  forgetPasswordApi() async {
-    http.Response response = await http.post(
-      Uri.parse(BaseConstant.BASE_URL + EndPoint.forgetPassword),
-      body: {
-        'email': forgetPasswordEmail,
-      },
-    );
-    if (response.statusCode == 200) {
-      var result = json.decode(response.body);
-      if (result['status']) {
-        loaderHide();
-        showSnackBar(
-            title: "Sucsess",
-            message: result['message'],
-            color: Colors.green,
-            isSuccess: true);
-        Get.offAll(() => const Login());
-        emailController.text = ForgetemailController.text;
-      } else {
-        showSnackBar(
-          title: "Failed",
-          message: result['message'],
-        );
-        loaderHide();
-      }
-    } else {
-      loaderHide();
-      printError(info: "Not get data from ForgetPassword api");
-    }
-    update();
+  void logOut() {
+    box.put("email", null);
+    box.put('password', null);
+    box.put('isEverLogedin', "true");
+    currUser = User_model();
+    currUser!.data = Data();
+    isUserLogedIn = false;
+    Get.back();
+    emit(UserLoginInitial());
+    Get.off(() => const Login());
+    log("User Logout");
   }
 
-  validate() {
+  void userLogedinUpdate() {
+    box.put("email", email);
+    box.put('password', password);
+    box.put('isEverLogedin', "true");
+  }
+
+  void validate() {
     emailError = emailValidator();
     passwordError = passwordValidator();
-    update();
+    emit(UserLoginValidation(
+      emailError: emailError,
+      passwordError: passwordError,
+    ));
   }
 
-  ForgetPasswordvalidate() {
+  void ForgetPasswordvalidate() {
     forgetPasswordEmailError = ForgetPasswordemailValidator();
-    update();
+    emit(UserForgetPasswordValidation(
+      forgetPasswordEmailError: forgetPasswordEmailError,
+    ));
   }
 
   String? emailValidator() {
@@ -160,35 +113,106 @@ class UserLoginController extends GetxController {
     }
   }
 
-  userLogedinUpdate() {
-    box.put("email", email);
-    box.put('password', password);
-    box.put('isEverLogedin', "true");
-  }
-
-  defaultLogin() {
-    email = box.get('email');
-    password = box.get('password');
-    isEverLogedin = box.get('isEverLogedin');
-    if (email != null && password != null) {
-      getApi();
+  void getApi() async {
+    emit(UserLoginLoading());
+    http.Response response = await http.post(
+      Uri.parse(BaseConstant.BASE_URL + EndPoint.login),
+      body: {'email': email, 'password': password},
+    );
+    if (response.statusCode == 200 || response.statusCode == 401) {
+      var result = json.decode(response.body);
+      user_model = User_model.fromJson(result);
+      if (user_model!.status == true) {
+        currUser = user_model!;
+        isUserLogedIn = true;
+        userLogedinUpdate();
+        log("UserLoginController --> Login Success : " + email!);
+        loaderHide();
+        emit(UserLoginSuccess(userModel: user_model!));
+      } else {
+        loaderHide();
+        showSnackBar(title: "Login Failed", message: user_model!.message);
+        currUser = User_model();
+        currUser!.data = Data();
+        emit(UserLoginFailure(errorMessage: user_model!.message));
+      }
     } else {
       currUser = User_model();
       currUser!.data = Data();
+      loaderHide();
+      printError(info: "Not get data from login api");
+      emit(UserLoginFailure(errorMessage: "Failed to log in"));
     }
-    update();
   }
 
-  logOut() {
-    box.put("email", null);
-    box.put('password', null);
-    box.put('isEverLogedin', "true");
-    currUser = User_model();
-    currUser!.data = Data();
-    isUserLogedIn = false;
-    Get.back();
-    update();
-    Get.off(() => const Login());
-    log("User Logout");
+  void forgetPasswordApi() async {
+    emit(UserForgetPasswordLoading());
+    http.Response response = await http.post(
+      Uri.parse(BaseConstant.BASE_URL + EndPoint.forgetPassword),
+      body: {
+        'email': forgetPasswordEmail,
+      },
+    );
+    if (response.statusCode == 200) {
+      var result = json.decode(response.body);
+      if (result['status']) {
+        loaderHide();
+        showSnackBar(
+            title: "Sucsess",
+            message: result['message'],
+            color: Colors.green,
+            isSuccess: true);
+        Get.offAll(() => const Login());
+        emailController.text = ForgetemailController.text;
+        emit(UserForgetPasswordSuccess());
+      } else {
+        showSnackBar(
+          title: "Failed",
+          message: result['message'],
+        );
+        loaderHide();
+        emit(UserForgetPasswordFailure(errorMessage: result['message']));
+      }
+    } else {
+      loaderHide();
+      printError(info: "Not get data from ForgetPassword api");
+      emit(UserForgetPasswordFailure(errorMessage: "Failed to reset password"));
+    }
+  }
+
+  Future<void> _handleSignIn() async {
+    try {
+      final GoogleSignInAccount? googleSignInAccount =
+          await googleSignIn.signIn();
+      if (googleSignInAccount != null) {
+        print(googleSignInAccount.displayName);
+        print(googleSignInAccount.email);
+        showSnackBar(
+            title: "Success",
+            color: Colors.green,
+            isSuccess: true,
+            message: "Successfully logged in with Google Sign-In");
+      }
+    } catch (error) {
+      print(error);
+    }
+  }
+
+  void socialMediaBtn() {
+    emit(UserSocialMediaLoading());
+    Bounce(
+      onPressed: (() {
+        _handleSignIn();
+      }),
+      duration: const Duration(milliseconds: 100),
+      child: Container(
+        height: 30,
+        width: 30,
+        decoration: const BoxDecoration(
+            image: DecorationImage(
+                image: AssetImage('assets/images/google_icon.png'))),
+      ),
+    );
+    emit(UserSocialMediaSuccess());
   }
 }
