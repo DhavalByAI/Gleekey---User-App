@@ -343,17 +343,6 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
         Bounce(
           onPressed: (() {
             _handleSignIn();
-            // getController.googleSignIn.signIn().then((value) {
-            //   if (value != null) {
-            //     _.emailController.text = value.email;
-            //     _.firstNameController.text =
-            //         value.displayName!.split(" ").first;
-            //     _.lastNameController.text = value.displayName!.split(" ").last;
-            //     Get.to(() => const Register());
-            //   } else {
-            //     print("User cancelled the Google Sign-in process");
-            //   }
-            // });
           }),
           duration: const Duration(milliseconds: 100),
           child: Container(
@@ -364,32 +353,6 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
                     image: AssetImage('assets/images/google_icon.png'))),
           ),
         ),
-        // const SizedBox(
-        //   width: 30,
-        // ),
-        // Container(
-        //   height: 30,
-        //   width: 30,
-        //   decoration: const BoxDecoration(
-        //       image: DecorationImage(
-        //           image: AssetImage('assets/images/facebook_icon.png'))),
-        // ),
-        // const SizedBox(
-        //   width: 30,
-        // ),
-        // GestureDetector(
-        //   onTap: () {
-        //     Navigator.push(context,
-        //         MaterialPageRoute(builder: (context) => const PhoneLogin()));
-        //   },
-        //   child: Container(
-        //     height: 30,
-        //     width: 30,
-        //     decoration: const BoxDecoration(
-        //         image: DecorationImage(
-        //             image: AssetImage('assets/images/phone_icon.png'))),
-        //   ),
-        // ),
       ],
     );
   }
